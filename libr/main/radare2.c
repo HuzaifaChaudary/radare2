@@ -1037,6 +1037,9 @@ R_API int r_main_radare2(int argc, const char **argv) {
 
 	mr.quiet = false;
 	set_color_default (r);
+	if (mr.parent_cons) {
+		r_config_set_i (r->config, "scr.color", mr.parent_cons->context->color_mode);
+	}
 
 	r_getopt_init (&opt, argc, argv, OPTARGS);
 	while ((c = r_getopt_next (&opt)) != -1) {
