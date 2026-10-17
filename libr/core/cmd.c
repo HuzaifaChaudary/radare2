@@ -2718,8 +2718,11 @@ static int __runMain(RCons *cons, RMainCallback cb, const char *arg) {
 	char *a = r_str_trim_dup (arg);
 	int argc = 0;
 	char **args = r_str_argv (a, &argc);
+	char *saved_cons = r_sys_getenv ("R2CONS");
 	r_sys_setenv_asut64 ("R2CONS", (ut64)(size_t)cons);
 	int res = cb? cb (argc, (const char **)args): -1;
+	r_sys_setenv ("R2CONS", saved_cons);
+	free (saved_cons);
 	free (args);
 	free (a);
 	return res;
@@ -2735,19 +2738,18 @@ static bool cmd_r2cmd(RCore *core, const char *_input) {
 		const struct {
 			const char *name;
 			RMainCallback callback;
-			bool external;
 		} tools[] = {
-			{ "rax2", core->r_main_rax2, false },
-			{ "r2pm", core->r_main_r2pm, false },
-			{ "r2", core->r_main_radare2, false },
-			{ "radare2", NULL, true },
-			{ "rapatch2", core->r_main_rapatch2, false },
-			{ "rasm2", core->r_main_rasm2, false },
-			{ "rabin2", core->r_main_rabin2, false },
-			{ "ragg2", core->r_main_ragg2, false },
-			{ "rafs2", core->r_main_rafs2, false },
-			{ "ravc2", core->r_main_ravc2, false },
-			{ "radiff2", core->r_main_radiff2, false },
+			{ "rax2", core->r_main_rax2 },
+			{ "r2pm", core->r_main_r2pm },
+			{ "r2", core->r_main_radare2 },
+			{ "radare2", core->r_main_radare2 },
+			{ "rapatch2", core->r_main_rapatch2 },
+			{ "rasm2", core->r_main_rasm2 },
+			{ "rabin2", core->r_main_rabin2 },
+			{ "ragg2", core->r_main_ragg2 },
+			{ "rafs2", core->r_main_rafs2 },
+			{ "ravc2", core->r_main_ravc2 },
+			{ "radiff2", core->r_main_radiff2 },
 		};
 		int i;
 		for (i = 0; i < R_ARRAY_SIZE (tools); i++) {
@@ -2756,10 +2758,15 @@ static bool cmd_r2cmd(RCore *core, const char *_input) {
 				if (*arguments && *arguments != ' ') {
 					continue;
 				}
-				if (tools[i].external) {
-					r_sys_cmdf ("%s", input);
-				} else {
-					rc = __runMain (core->cons, tools[i].callback, input);
+				rc = __runMain (core->cons, tools[i].callback, input);
+				if (tools[i].callback == core->r_main_radare2) {
+					RListIter *iter;
+					RConfigNode *node;
+					r_list_foreach (core->config->nodes, iter, node) {
+						if (r_str_startswith (node->name, "log.")) {
+							r_config_bump (core->config, node->name);
+						}
+					}
 				}
 				goto done;
 			}
@@ -2848,7 +2855,7 @@ static int cmd_resize(void *data, const char *input) {
 	int ret;
 
 	if (cmd_r2cmd (core, input)) {
-		return true;
+		return R_CMD_RC_SUCCESS;
 	}
 
 	ut64 oldsize = (core->io->desc) ? r_io_fd_size (core->io, core->io->desc->fd): 0;
@@ -3595,7 +3602,7 @@ static int cmdpipe_internal(RCore *core, char *radare_cmd, char *shell_cmd) {
 	int olen, ret = -1;
 	char *out = NULL;
 
-	if (*shell_cmd == '!' || cons->context->cmd_str_depth > 0) {
+	if (*shell_cmd == '!' || cons->output_cons || cons->context->cmd_str_depth > 0) {
 		if (*shell_cmd == '!') {
 			shell_cmd++;
 		}
