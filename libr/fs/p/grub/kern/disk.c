@@ -16,6 +16,7 @@
  *  along with GRUB.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <r_util/r_log.h>
 #include <grub/disk.h>
 #include <grub/err.h>
 #include <grub/mm.h>
@@ -437,7 +438,7 @@ grub_disk_read(grub_disk_t disk, grub_disk_addr_t sector, grub_off_t offset, gru
 				tmp_buf = p;
 
 				if ((disk->dev->read) (disk, sector, num, tmp_buf)) {
-					eprintf ("%s read failed\n", disk->name);
+					R_LOG_ERROR ("%s read failed", disk->name? disk->name: "disk");
 					grub_errno = GRUB_ERR_BAD_FS;
 					goto finish;
 				}
