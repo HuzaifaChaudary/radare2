@@ -150,6 +150,14 @@ a "ldr w3, [x8, -133]" 03b157b8
 a "ldr w3, [x8, -256]" 030150b8
 a "ldr w3, [x8, 113]" 031147b8
 a "ldr w3, [x8, 236]" 03ed40b9
+ad "ldr w0, [x1], 4" 204440b8
+a "ldr w0, [x1], -4" 20c45fb8
+ad "ldr w0, [x1, 4]!" 204c40b8
+ad "ldr w0, [x1, 0xfd]!" 20dc4fb8
+a "ldr w0, [x1, -4]!" 20cc5fb8
+ad "ldr w0, [x1, 0x3ffc]" 20fc7fb9
+ad "ldr w16, [x28, x4, sxtx]" 90eb64b8
+ad "ldr w0, [x1, w2, sxtw 2]" 20d862b8
 a "ldr x4, [x6, 0x14]" c44041f8
 a "ldr x5, [x1, -0x20]" 25005ef8
 a "ldr x5, [x1, -0x32]" 25e05cf8

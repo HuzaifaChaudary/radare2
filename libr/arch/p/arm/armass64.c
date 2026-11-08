@@ -2288,10 +2288,7 @@ bool arm64ass (const char *str, ut64 addr, ut32 *op) {
 	} else if (r_str_startswith (str, "strh")) {
 		*op = lsop (&ops, 0x00000078, -1);
 	} else if (r_str_startswith (str, "ldr")) {
-		*op = UT32_MAX;
-		if (!strstr (str, " w")) {
-			*op = lsop (&ops, 0x000040f8, -1);
-		}
+		*op = lsop (&ops, 0x000040f8, -1);
 		if (*op == UT32_MAX) {
 			*op = reglsop (&ops, 0x000040f8);
 		}
