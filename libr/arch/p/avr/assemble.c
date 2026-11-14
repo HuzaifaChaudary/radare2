@@ -30,6 +30,10 @@ static int getnum(const char *s) {
 	if (*s == '$') {
 		s++;
 	}
+	// sdb_atoi gives 0 for a negative number
+	if (*s == '-') {
+		return -(int)sdb_atoi (s + 1);
+	}
 	return sdb_atoi (s);
 }
 

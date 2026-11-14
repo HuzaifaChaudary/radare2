@@ -86,3 +86,10 @@ a "in r1, 63" 1fb6
 ad "in r1, sph" 1eb6
 a "sbi 31, 1" f99a
 ad "cbi 0x1f, 7" ff98
+a "ldi r16, -1" 0fef
+a "ldi r16, -128" 00e8
+a "cpi r20, -2" 4e3f
+a "subi r16, -1" 0f5f
+a "rjmp -4" fecf
+a "brne -2" f9f7
+a "rcall -2" ffdf
