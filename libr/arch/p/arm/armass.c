@@ -94,8 +94,6 @@ static ArmOp ops[] = {
 	{ "strex", 0x900f8000, TYPE_MEM },
 	{ "strbt", 0x0000e004, TYPE_MEM },
 	{ "strb", 0x0000c005, TYPE_MEM },
-	{ "strd", 0xf000c001, TYPE_MEM },
-	{ "strh", 0xb0008001, TYPE_MEM },
 	{ "str", 0x8000, TYPE_MEM },
 
 	{ "blx", 0x30ff2f01, TYPE_BRR },
@@ -1306,6 +1304,115 @@ static int arm_ldm_mode(const char *s, bool is_ldm) {
 		}
 	}
 	return -1;
+}
+
+/* strh, ldrh, ldrsb, ldrsh, strd and ldrd: cond 000 P U I W L rn rt imm4h 1 S H 1 imm4l */
+static int arm_extra_ldst(ArmOpcode *ao) {
+	const struct {
+		const char *name;
+		ut32 bits;
+		bool dual;
+	} xops[] = {
+		{ "ldrsh", 0x1000f0, false },
+		{ "ldrsb", 0x1000d0, false },
+		{ "ldrh", 0x1000b0, false },
+		{ "strh", 0xb0, false },
+		{ "ldrd", 0xd0, true },
+		{ "strd", 0xf0, true },
+		{ NULL, 0, false }
+	};
+	int i, cond = -1;
+	for (i = 0; xops[i].name; i++) {
+		if (r_str_startswith (ao->op, xops[i].name)) {
+			char *suffix = ao->op + strlen (xops[i].name);
+			cond = *suffix? arm_cond (suffix): 14;
+			if (cond >= 0) {
+				break;
+			}
+		}
+	}
+	if (!xops[i].name) {
+		return -1;
+	}
+	char **a = ao->a;
+	const int rt = getreg (a[0]);
+	int n = 1;
+	if (rt < 0) {
+		return 0;
+	}
+	if (xops[i].dual) {
+		if (rt & 1 || rt == 14 || getreg (a[1]) != rt + 1) {
+			return 0;
+		}
+		n = 2;
+	}
+	if (!a[n] || *a[n] != '[' || (a[n + 1] && a[n + 2])) {
+		return 0;
+	}
+	char base[16];
+	char offset[32] = {0};
+	bool pre = true;
+	bool wback = false;
+	r_str_ncpy (base, a[n] + 1, sizeof (base));
+	if (a[n + 1]) {
+		r_str_ncpy (offset, a[n + 1], sizeof (offset));
+		r_str_trim (offset);
+	}
+	char *close = strchr (base, ']');
+	if (close) {
+		// [rn] or post-index [rn], offset
+		if (close[1]) {
+			return 0;
+		}
+		*close = 0;
+		pre = !a[n + 1];
+	} else if (r_str_endswith (offset, "]!")) {
+		wback = true;
+		offset[strlen (offset) - 2] = 0;
+	} else if (r_str_endswith (offset, "]")) {
+		offset[strlen (offset) - 1] = 0;
+	} else {
+		return 0;
+	}
+	r_str_trim (base);
+	const int rn = getreg (base);
+	if (rn < 0) {
+		return 0;
+	}
+	// writing back into a register that is also loaded or stored is unpredictable
+	if ((wback || !pre) && (rn == rt || (xops[i].dual && rn == rt + 1))) {
+		return 0;
+	}
+	ut32 o = ((ut32)cond << 28) | xops[i].bits | (rn << 16) | (rt << 12);
+	const char *off = r_str_trim_head_ro (offset);
+	if (*off == '-') {
+		off++;
+	} else {
+		o |= 1 << 23;
+		if (*off == '+') {
+			off++;
+		}
+	}
+	const int rm = getreg (off);
+	if (rm >= 0) {
+		o |= rm;
+	} else if (*off) {
+		const ut64 imm = getnum (off);
+		if (err || imm > 0xff) {
+			return 0;
+		}
+		o |= (1 << 22) | ((imm & 0xf0) << 4) | (imm & 0xf);
+	} else {
+		o |= 1 << 22;
+	}
+	if (pre) {
+		o |= 1 << 24;
+	}
+	if (wback) {
+		o |= 1 << 21;
+	}
+	ao->o = r_swap_ut32 (o);
+	return 1;
 }
 
 static st32 thumb_getoffset(char *label, ut64 cur) {
@@ -5998,6 +6105,10 @@ static int arm_assemble(ArmOpcode *ao, ut64 off, const char *str) {
 	int coproc, opc;
 	bool rex = false;
 	int shift, low, high;
+	ret = arm_extra_ldst (ao);
+	if (ret >= 0) {
+		return ret;
+	}
 	/* Handle ARM-state MRS early (Rd <- PSR). Thumb variants are handled elsewhere. */
 	if (r_str_startswith (ao->op, "mrs")) {
 		cond = 14; // default AL
@@ -6232,38 +6343,6 @@ static int arm_assemble(ArmOpcode *ao, ut64 off, const char *str) {
 							return 0;
 						}
 						ao->o |= r0 << 20;
-						if (!strcmp (ops[i].name, "strd")) {
-							r1 = getreg (ao->a[2]);
-							if (r1 == -1) {
-								break;
-							}
-							ao->o |= r1 << 8;
-							if (ao->a[3]) {
-								char *bracket = strchr (ao->a[3], ']');
-								if (bracket) {
-									*bracket = '\0';
-								}
-								int num = getnum (ao->a[3]);
-								ao->o |= (num & 0x0f) << 24;
-								ao->o |= ((num >> 4) & 0x0f) << 16;
-							}
-							break;
-						}
-						if (!strcmp (ops[i].name, "strh")) {
-							ao->o |= r1 << 8;
-							if (ao->a[2]) {
-								reg = getreg (ao->a[2]);
-								if (reg != -1) {
-									ao->o |= reg << 24;
-								} else {
-									ao->o |= 1 << 14;
-									ao->o |= getnum (ao->a[2]) << 24;
-								}
-							} else {
-								ao->o |= 1 << 14;
-							}
-							break;
-						}
 						if (rex) {
 							ao->o |= r1 << 24;
 						} else {
