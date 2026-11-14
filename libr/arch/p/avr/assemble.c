@@ -197,16 +197,18 @@ int assemble_operand(ut64 pc, const char *operand, int type, uint32_t *res) {
 
 	switch (type) {
 	case OPERAND_REGISTER_EVEN_PAIR:
-		*res = parse_registerpair(operand);
-		if (*res > 0) {
+		// r1:r0 is pair 0, -1 is an error
+		temp = parse_registerpair (operand);
+		if (temp >= 0) {
+			*res = temp;
 			ret = 0;
 		}
 		break;
 	case OPERAND_REGISTER_EVEN_PAIR_STARTR24:
-		*res = parse_registerpair(operand);
+		temp = parse_registerpair (operand);
 		// encoding in 2 bits for r25:r24 and upper pairs
-		if (*res >= 12) {
-			*res -= 12;
+		if (temp >= 12) {
+			*res = temp - 12;
 			ret = 0;
 		}
 		break;

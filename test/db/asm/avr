@@ -89,3 +89,10 @@ ad "cbi 0x1f, 7" ff98
 ad "sts 0x0, r16" 00930000
 ad "lds r10, 0x0" a0900000
 ad "lds r16, 0x10" 00911000
+ad "movw r2, r0" 1001
+ad "movw r0, r2" 0101
+a "movw r31:r30, r29:r28" fe01
+a "adiw zh:zl, 1" 3196
+a "adiw xh:xl, 1" 1196
+a "adiw r31:r30, 1" 3196
+a "sbiw x, 2" 1297

@@ -160,40 +160,42 @@ int avr_format_insn(RArchSession *as, avrDisassembleContext *context, char *out,
 	return 1;
 }
 
-int parse_registerpair(const char *operand) {
-	int res = -1;
-	char *op = strdup (operand);
-	char *save_ptr = NULL;
-	char *first = r_str_tok_r (op, ":", &save_ptr);
+// register number of one half of a pair: rN, x, xl, xh, y, yl, yh, z, zl or zh
+static int pair_half(const char *s) {
+	if (s[0] == 'r' && isdigit ((ut8)s[1])) {
+		char *end;
+		const long n = strtol (s + 1, &end, 10);
+		return (!*end && n >= 0 && n <= 31)? n: -1;
+	}
+	if (s[0] >= 'x' && s[0] <= 'z') {
+		const int base = 26 + (s[0] - 'x') * 2;
+		if (!s[1] || (s[1] == 'l' && !s[2])) {
+			return base;
+		}
+		if (s[1] == 'h' && !s[2]) {
+			return base + 1;
+		}
+	}
+	return -1;
+}
 
-	if (!first || strlen (first) < 2) {
-		free (op);
+// a register pair as rN, rN+1:rN, x, y, z or xh:xl, returns N / 2 or -1
+int parse_registerpair(const char *operand) {
+	char *op = strdup (operand);
+	if (!op) {
 		return -1;
 	}
-
-	char *second = r_str_tok_r (NULL, ":", &save_ptr);
-	if (second && strlen (second) < 2) {
-		if (first[0] == 'r' && second[0] == 'r') {
-			int fnum = atoi (first + 1);
-			int snum = atoi (second + 1);
-			if (fnum > snum && snum >= 0 && snum <= 30) {
-				res = snum / 2;
-			}
-		} else if (first[0] >= 'x' && first[0] <= 'z'
-				&& second[0] >= 'x' && second[0] <= 'z'
-				&& first[1] == 'h' && second[1] == 'l') {
-			res = (2 - ('z' - first[0])) + 12;
+	int low;
+	char *colon = strchr (op, ':');
+	if (colon) {
+		*colon = 0;
+		low = pair_half (colon + 1);
+		if (pair_half (op) != low + 1) {
+			low = -1;
 		}
 	} else {
-		if (first[0] == 'r') {
-			int snum = atoi (first + 1);
-			if (snum >= 0 && snum <= 30) {
-				res = snum / 2;
-			}
-		} else if (first[0] >= 'x' && first[0] <= 'z') {
-			res = (2 - ('z' - first[0])) + 12;
-		}
+		low = pair_half (op);
 	}
 	free (op);
-	return res;
+	return (low >= 0 && !(low & 1))? low / 2: -1;
 }
