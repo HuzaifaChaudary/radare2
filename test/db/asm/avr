@@ -93,3 +93,8 @@ a "subi r16, -1" 0f5f
 a "rjmp -4" fecf
 a "brne -2" f9f7
 a "rcall -2" ffdf
+a "ldi r16, 255" 0fef
+a "adiw r24, 63" cf96
+a "ldd r1, Y+63" 1fac
+a "des 15" fb94
+a "lds r16, 0xffff" 0091ffff

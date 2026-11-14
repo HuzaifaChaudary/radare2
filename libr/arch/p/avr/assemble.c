@@ -45,17 +45,31 @@ specialregs RegsTable[REGS_TABLE] = {
 };
 
 
-// an i/o address must fit the bits of its field, 6 for in and out, 5 for sbi, cbi, sbic and sbis
-static bool io_fits(uint32_t value, int type, uint16_t mask) {
-	if (type != OPERAND_IO_REGISTER) {
-		return true;
-	}
+// an immediate must fit the bits of its field, a negative 8-bit one is taken as its two's complement
+static bool operand_fits(uint32_t value, int type, uint16_t mask) {
 	int bits = 0;
 	while (mask) {
 		bits += mask & 1;
 		mask >>= 1;
 	}
-	return value < (1u << bits);
+	switch (type) {
+	case OPERAND_DATA:
+		if (bits == 8 && (int32_t)value < 0) {
+			return (int32_t)value >= -128;
+		}
+		return value < (1u << bits);
+	case OPERAND_IO_REGISTER:
+	case OPERAND_BIT:
+	case OPERAND_DES_ROUND:
+	case OPERAND_YPQ:
+	case OPERAND_ZPQ:
+		return value < (1u << bits);
+	case OPERAND_LONG_ABSOLUTE_ADDRESS:
+		// lds and sts take a 16-bit address in the second word
+		return value <= 0xffff;
+	default:
+		return true;
+	}
 }
 
 int avr_encode(RArchSession *as, ut64 pc, const char *str, ut8 *outbuf) {
@@ -99,12 +113,17 @@ int avr_encode(RArchSession *as, ut64 pc, const char *str, ut8 *outbuf) {
 				if (assemble_operand (pc, tok.ens[1], instructionSet[instr_idx].operandTypes[0], &op1) >= 0) {
 					// jmp and call has 4-byte opcode
 					if (instructionSet[instr_idx].operandTypes[0] == OPERAND_LONG_ABSOLUTE_ADDRESS) {
+						if (op1 > 0x7ffffe) {
+							return 0;
+						}
 						op1 = op1/2;
 						coded = instructionSet[instr_idx].opcodeMask
 						| packDataByMask((op1 >> 16), instructionSet[instr_idx].operandMasks[0]);
 						// memory addressed in bytes for jumps
 						coded |= ((uint16_t)op1) << 16;
 						len = 4;
+					} else if (!operand_fits (op1, instructionSet[instr_idx].operandTypes[0], instructionSet[instr_idx].operandMasks[0])) {
+						return 0;
 					} else {
 						// see avr_disasm.h for OPERAND_REGISTER_GHOST description
 						// e.g. clr r0 == eor r0, r0
@@ -124,8 +143,8 @@ int avr_encode(RArchSession *as, ut64 pc, const char *str, ut8 *outbuf) {
 			} else if (instructionSet[instr_idx].numOperands == 2 && tokens_cnt == 3) {
 				if (assemble_operand(pc, tok.ens[1], instructionSet[instr_idx].operandTypes[0], &op1) >= 0 &&
 				   assemble_operand(pc, tok.ens[2], instructionSet[instr_idx].operandTypes[1], &op2) >= 0 &&
-				   io_fits (op1, instructionSet[instr_idx].operandTypes[0], instructionSet[instr_idx].operandMasks[0]) &&
-				   io_fits (op2, instructionSet[instr_idx].operandTypes[1], instructionSet[instr_idx].operandMasks[1])) {
+				   operand_fits (op1, instructionSet[instr_idx].operandTypes[0], instructionSet[instr_idx].operandMasks[0]) &&
+				   operand_fits (op2, instructionSet[instr_idx].operandTypes[1], instructionSet[instr_idx].operandMasks[1])) {
 
 					coded = instructionSet[instr_idx].opcodeMask
 						| packDataByMask(op1, instructionSet[instr_idx].operandMasks[0])
@@ -252,9 +271,11 @@ int assemble_operand(ut64 pc, const char *operand, int type, uint32_t *res) {
 		ret = 0;
 		break;
 	case OPERAND_COMPLEMENTED_DATA:
-		*res = getnum (operand); // return pure number
-		*res = ~(*res) & 0xFF; // complement it
-		ret = 0;
+		temp = getnum (operand);
+		if (temp >= -128 && temp <= 0xff) {
+			*res = ~temp & 0xff; // complement it
+			ret = 0;
+		}
 		break;
 	case OPERAND_MX:
 	case OPERAND_X:

@@ -730,3 +730,37 @@ ERROR: Cannot assemble 'ld a, foo bar' at line 1
 ERROR: Cannot assemble 'bit 10, a' at line 1
 EOF
 RUN
+
+NAME=pa avr rejects out of range immediates
+FILE=-
+CMDS=<<EOF
+e asm.arch=avr
+pa ldi r16, 256
+pa ldi r16, -129
+pa cpi r25, 256
+pa adiw r24, 64
+pa ldd r1, Y+64
+pa std Z+64, r1
+pa sbrc r1, 8
+pa bset 8
+pa des 16
+pa cbr r16, 256
+pa lds r16, 0x10000
+pa jmp 0x800000
+EOF
+EXPECT=
+EXPECT_ERR=<<EOF
+ERROR: Cannot assemble 'ldi r16, 256' at line 1
+ERROR: Cannot assemble 'ldi r16, -129' at line 1
+ERROR: Cannot assemble 'cpi r25, 256' at line 1
+ERROR: Cannot assemble 'adiw r24, 64' at line 1
+ERROR: Cannot assemble 'ldd r1, Y+64' at line 1
+ERROR: Cannot assemble 'std Z+64, r1' at line 1
+ERROR: Cannot assemble 'sbrc r1, 8' at line 1
+ERROR: Cannot assemble 'bset 8' at line 1
+ERROR: Cannot assemble 'des 16' at line 1
+ERROR: Cannot assemble 'cbr r16, 256' at line 1
+ERROR: Cannot assemble 'lds r16, 0x10000' at line 1
+ERROR: Cannot assemble 'jmp 0x800000' at line 1
+EOF
+RUN
