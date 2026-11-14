@@ -325,7 +325,7 @@ uint16_t packDataByMask(uint16_t data, uint16_t mask) {
  * (see avr_disasm.h for more info)
  * returns index of the instruction in the table */
 static int search_instruction(RArchSession *as, AvrToken *tok, int args) {
-	int i, op1 = 0, op2 = 0;
+	int i;
 
 	for (i = 0; i < AVR_TOTAL_INSTRUCTIONS - 1; i++) {
 		// check instruction mnemonic
@@ -350,18 +350,12 @@ static int search_instruction(RArchSession *as, AvrToken *tok, int args) {
 					if (instructionSet[i].operandTypes[1] == parse_specialreg (tok->ens[2])) {
 						return i;
 					}
-					// handling lds command, distinguishing long from 16-bit version
+					// lds and sts take the 32-bit form, the 16-bit one only exists on reduced core tiny parts
 				} else if (instructionSet[i].mnemonic[0] == 'l'
 					&& instructionSet[i].mnemonic[1] == 'd'
 					&& instructionSet[i].mnemonic[2] == 's'
 					&& instructionSet[i].operandTypes[1] == OPERAND_LONG_ABSOLUTE_ADDRESS) {
-					// ineffective, but needed for lds/sts and other cases
-					if (strlen (tok->ens[2]) > 0) {
-						op2 = getnum (tok->ens[2]);
-						if (op2 > 127) {
-							return i;
-						}
-					}
+					return i;
 				// handling st & std instruction with 2 args
 				} else if (instructionSet[i].mnemonic[0] == 's'
 					&& instructionSet[i].mnemonic[1] == 't'
@@ -370,18 +364,11 @@ static int search_instruction(RArchSession *as, AvrToken *tok, int args) {
 					if (instructionSet[i].operandTypes[0] == parse_specialreg (tok->ens[1])) {
 						return i;
 					}
-					// handling sts long command
 				} else if (instructionSet[i].mnemonic[0] == 's'
 					&& instructionSet[i].mnemonic[1] == 't'
 					&& instructionSet[i].mnemonic[2] == 's'
 					&& instructionSet[i].operandTypes[0] == OPERAND_LONG_ABSOLUTE_ADDRESS) {
-					// same for 1st operand of sts
-					if (strlen (tok->ens[1]) > 0) {
-						op1 = getnum (tok->ens[1]);
-						if (op1 > 127) {
-							return i;
-						}
-					}
+					return i;
 				} else {
 					return i; // it's not st/ld/lpm-like instruction with 2 args
 				}

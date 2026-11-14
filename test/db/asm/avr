@@ -86,3 +86,6 @@ a "in r1, 63" 1fb6
 ad "in r1, sph" 1eb6
 a "sbi 31, 1" f99a
 ad "cbi 0x1f, 7" ff98
+ad "sts 0x0, r16" 00930000
+ad "lds r10, 0x0" a0900000
+ad "lds r16, 0x10" 00911000
